@@ -67,8 +67,9 @@ class Settings:
     nvidia_model: str = "meta/llama-3.1-8b-instruct"
 
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-2.0-flash"
+    gemini_model: str = "gemini-3.5-flash"
     gemini_embedding_model: str = "gemini-embedding-002"
+    gemini_fallback_model: str = "gemma-4-31b-it"
 
     llm_provider: str = ""
     embedding_provider: str = ""
@@ -108,9 +109,12 @@ class Settings:
             nvidia_api_key=get("NVIDIA_API_KEY"),
             nvidia_model=get("NVIDIA_MODEL", default="meta/llama-3.1-8b-instruct"),
             gemini_api_key=get("GEMINI_API_KEY"),
-            gemini_model=get("GEMINI_MODEL", default="gemini-2.0-flash"),
+            gemini_model=get("GEMINI_MODEL", default="gemini-3.5-flash"),
             gemini_embedding_model=get(
                 "GEMINI_EMBEDDING_MODEL", default="gemini-embedding-002"
+            ),
+            gemini_fallback_model=get(
+                "GEMINI_FALLBACK_MODEL", default="gemma-4-31b-it"
             ),
             llm_provider=get("LLM_PROVIDER").lower(),
             embedding_provider=get("EMBEDDING_PROVIDER").lower(),
@@ -173,6 +177,10 @@ class Settings:
     @property
     def groq_fallback_model_active(self) -> str:
         return self.groq_fallback_model or "qwen/qwen3.8-27b"
+
+    @property
+    def gemini_fallback_model_active(self) -> str:
+        return self.gemini_fallback_model or "gemma-4-31b-it"
 
     @property
     def active_embedding_model(self) -> str:

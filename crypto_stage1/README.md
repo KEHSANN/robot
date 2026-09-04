@@ -5,7 +5,7 @@ Crypto event intelligence pipeline:
 ```text
 stage0/      normalise, deduplicate, embed, cluster
 stage1/      consensus over event assignments (rule + optional LLM voter)
-stage2/      generate narrative / risk output (Gemini primary, Groq fallback)
+stage2/      generate narrative / risk output (Gemini 3.5 Flash + Gemma 4 31B)
 stage3/      final market summary/panel (NVIDIA)
 services/    config, LLM client, embedding provider
 database/    durable schema
@@ -17,7 +17,7 @@ can be checked and tested on a bare Linux server without provider SDKs.
 
 Provider mapping:
 - Stage 0: Gemini Embedding 2 (`gemini-embedding-002`) when a Gemini key exists.
-- Stage 2: Gemini primary, Groq fallback (`openai/gpt-oss-120b`, then `qwen/qwen3.8-27b`).
+- Stage 2: Gemini 3.5 Flash primary, Gemma 4 31B (`gemma-4-31b-it`) fallback, both via Gemini API.
 - Final stage: NVIDIA.
 
 ## Quick checks
@@ -75,10 +75,10 @@ GEMINI_MODEL=gemini-2.0-flash
 or
 
 ```bash
-# Stage 2 fallback: Groq (console.groq.com)
-GROQ_API_KEY=...
-GROQ_MODEL=openai/gpt-oss-120b
-GROQ_FALLBACK_MODEL=qwen/qwen3.8-27b
+# Stage 2: Gemini 3.5 Flash + Gemma 4 31B (both via Gemini API)
+GEMINI_API_KEY=...
+GEMINI_MODEL=gemini-3.5-flash
+GEMINI_FALLBACK_MODEL=gemma-4-31b-it
 ```
 
 When no key is configured, the pipeline uses deterministic rule-based
