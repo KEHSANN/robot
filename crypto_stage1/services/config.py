@@ -66,7 +66,7 @@ class Settings:
 
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.0-flash"
-    gemini_embedding_model: str = "text-embedding-004"
+    gemini_embedding_model: str = "gemini-embedding-002"
 
     llm_provider: str = ""
     embedding_provider: str = ""
@@ -104,7 +104,7 @@ class Settings:
             gemini_api_key=get("GEMINI_API_KEY"),
             gemini_model=get("GEMINI_MODEL", default="gemini-2.0-flash"),
             gemini_embedding_model=get(
-                "GEMINI_EMBEDDING_MODEL", default="text-embedding-004"
+                "GEMINI_EMBEDDING_MODEL", default="gemini-embedding-002"
             ),
             llm_provider=get("LLM_PROVIDER").lower(),
             embedding_provider=get("EMBEDDING_PROVIDER").lower(),
@@ -137,12 +137,13 @@ class Settings:
     def resolved_embedding_provider(self) -> str:
         if self.embedding_provider:
             return self.embedding_provider
+        # Stage 0 uses Gemini Embedding 2 by default when a Gemini key is present.
+        if self.gemini_api_key:
+            return "gemini"
         if self.embedding_model:
             return "openai"
         if self.openai_api_key:
             return "openai"
-        if self.gemini_api_key:
-            return "gemini"
         return ""
 
     @property
