@@ -167,16 +167,28 @@ class LLMClient:
 
     @classmethod
     def stage2_client(cls, settings: Settings) -> "LLMClient":
-        """Gemini primary, OpenAI fallback for Stage 2 narrative generation."""
+        """Gemini primary, Groq fallback for Stage 2 narrative generation.
+
+        The Groq fallback tries ``openai/gpt-oss-120b`` first and then
+        ``qwen/qwen3.8-27b``.
+        """
         primary = cls.from_settings(settings, provider="gemini")
-        fallback = cls.from_settings(settings, provider="openai")
-        if primary.configured and fallback.configured:
-            primary.fallback = fallback
+        groq_primary = cls.from_settings(settings, provider="groq")
+        groq_secondary = cls.from_settings(settings, provider="groq")
+        if groq_secondary.configured:
+            groq_secondary.model = settings.groq_fallback_model_active
+
+        if primary.configured and groq_primary.configured:
+            groq_primary.fallback = groq_secondary if groq_secondary.configured else None
+            primary.fallback = groq_primary
             return primary
         if primary.configured:
             return primary
-        if fallback.configured:
-            return fallback
+        if groq_primary.configured:
+            groq_primary.fallback = groq_secondary if groq_secondary.configured else None
+            return groq_primary
+        if groq_secondary.configured:
+            return groq_secondary
         return cls()
 
     @classmethod

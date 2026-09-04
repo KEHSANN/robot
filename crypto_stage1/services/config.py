@@ -59,7 +59,9 @@ class Settings:
     openai_embedding_model: str = "text-embedding-3-small"
 
     groq_api_key: str = ""
-    groq_model: str = "llama-3.3-70b-versatile"
+    groq_base_url: str = "https://api.groq.com/openai/v1"
+    groq_model: str = "openai/gpt-oss-120b"
+    groq_fallback_model: str = "qwen/qwen3.8-27b"
 
     nvidia_api_key: str = ""
     nvidia_model: str = "meta/llama-3.1-8b-instruct"
@@ -98,7 +100,11 @@ class Settings:
                 "OPENAI_EMBEDDING_MODEL", default="text-embedding-3-small"
             ),
             groq_api_key=get("GROQ_API_KEY"),
-            groq_model=get("GROQ_MODEL", default="llama-3.3-70b-versatile"),
+            groq_base_url=get("GROQ_BASE_URL", default="https://api.groq.com/openai/v1"),
+            groq_model=get("GROQ_MODEL", default="openai/gpt-oss-120b"),
+            groq_fallback_model=get(
+                "GROQ_FALLBACK_MODEL", default="qwen/qwen3.8-27b"
+            ),
             nvidia_api_key=get("NVIDIA_API_KEY"),
             nvidia_model=get("NVIDIA_MODEL", default="meta/llama-3.1-8b-instruct"),
             gemini_api_key=get("GEMINI_API_KEY"),
@@ -117,16 +123,21 @@ class Settings:
 
     @property
     def resolved_llm_provider(self) -> str:
+        """Best single provider for generic stages (Stage 1 default).
+
+        For bounded optional providers the exact client should be created with
+        ``LLMClient.from_settings(..., provider=...)`` instead.
+        """
         if self.llm_provider:
             return self.llm_provider
-        if self.openai_api_key:
-            return "openai"
+        if self.gemini_api_key:
+            return "gemini"
         if self.groq_api_key:
             return "groq"
         if self.nvidia_api_key:
             return "nvidia"
-        if self.gemini_api_key:
-            return "gemini"
+        if self.openai_api_key:
+            return "openai"
         return ""
 
     @property
@@ -158,6 +169,10 @@ class Settings:
         if provider == "gemini":
             return self.gemini_model
         return ""
+
+    @property
+    def groq_fallback_model_active(self) -> str:
+        return self.groq_fallback_model or "qwen/qwen3.8-27b"
 
     @property
     def active_embedding_model(self) -> str:
