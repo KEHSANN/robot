@@ -1,0 +1,21 @@
+# Crypto Event Intelligence System — runtime dependencies
+#
+# Deliberately small. All provider calls (Gemini / Groq / NVIDIA), RSS fetching,
+# Telegram Bot API and price lookups go through httpx, so no vendor SDK is
+# required and the multi-key failover in services/keypool.py stays in control of
+# every request.
+
+httpx>=0.28
+pydantic>=2.9
+python-dotenv>=1.0
+
+# Postgres + vector similarity for the Stage 0 event memory.
+# Optional: with no DATABASE_URL the system falls back to the in-memory store.
+# The `pool` extra supplies psycopg_pool, which the store uses so the stages can
+# hold several connections in parallel without serialising on one.
+psycopg[binary,pool]>=3.2
+pgvector>=0.3
+
+# dev / tests
+pytest>=8.0
+pytest-asyncio>=0.24
