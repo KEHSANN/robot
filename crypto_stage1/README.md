@@ -1,60 +1,102 @@
 # crypto_stage1
 
-Crypto event intelligence pipeline under a clean package layout:
+Crypto event intelligence pipeline:
 
 ```text
 stage0/      normalise, deduplicate, embed, cluster
-stage1/      consensus over event assignments
-stage2/      narrative/output pipeline (placeholder)
-services/    embedding provider, shared services
+stage1/      consensus over event assignments (rule + optional LLM voter)
+stage2/      generate narrative / risk output
+services/    config, LLM client, embedding provider
 database/    durable schema
-tests/       dependency-free unit and end-to-end shape tests
+tests/       dependency-free unit and end-to-end tests
 ```
 
-The implementation is intentionally dependency-light right now, so it can be
-checked and tested on a fresh server without installing provider SDKs.
+The implementation is intentionally dependency-free for the core path, so it
+can be checked and tested on a bare Linux server without provider SDKs. When
+provider keys are configured, Stage 1 and Stage 2 optionally use an
+OpenAI-compatible or Gemini model.
 
 ## Quick checks
 
 ```bash
-python -m py_compile \
-  stage0/*.py \
-  stage1/*.py \
-  stage2/*.py \
-  services/*.py \
-  tests/*.py
+python3 -m py_compile \
+  run_demo.py main.py pipeline.py \
+  stage0/*.py stage1/*.py stage2/*.py services/*.py tests/*.py
 
-python -m unittest discover -s tests -p '*_test.py' -v
+python3 -m unittest discover -s tests -p '*_test.py' -v
 ```
+
+Expected:
+
+```text
+Ran 13 tests ... OK
+```
+
+## Run the full pipeline
+
+From this directory:
+
+```bash
+python3 run_demo.py
+```
+
+Run over your own JSONL feed:
+
+```bash
+python3 main.py --input feed.jsonl
+python3 main.py --input feed.jsonl --output out.jsonl
+cat feed.jsonl | python3 main.py
+```
+
+Each input line is a JSON object:
+
+```json
+{"record_id":"r1","title":"Bitcoin ETF approved","body":"SEC approves spot bitcoin ETF.","source":"rss"}
+```
+
+Output is one JSON object per line with `record_id`, `event_id`, `narrative`,
+`risk_label`, `confidence`, and `metadata`.
+
+## Use a real model
+
+Copy `.env.example` to `.env` and fill one provider:
+
+```bash
+LLM_PROVIDER=gemini
+GEMINI_API_KEY=...
+GEMINI_MODEL=gemini-2.0-flash
+```
+
+or
+
+```bash
+LLM_PROVIDER=openai
+OPENAI_API_KEY=...
+OPENAI_MODEL=gpt-4o-mini
+```
+
+When no key is configured, the pipeline uses deterministic rule-based
+embeddings, voting and narratives. The status flag is recorded as
+`used_model` in Stage 2 metadata.
 
 ## Layout
 
 ```text
 crypto_stage1/
+├── main.py                 # full JSONL CLI
+├── pipeline.py             # Stage 0 -> 1 -> 2 orchestrator
+├── run_demo.py             # small in-memory demo
 ├── stage0/
-│   └── __init__.py, normalizer.py, dedup.py, similarity.py,
-│        event_assignment.py, fact_engine.py, embedding_store.py, pipeline.py
 ├── stage1/
-│   └── __init__.py, schemas.py, consensus.py, runner.py, main.py
 ├── stage2/
-│   └── __init__.py, pipeline.py
 ├── services/
-│   └── __init__.py, embedding_service.py
 ├── database/
-│   └── stage0_schema.sql
-├── tests/
-│   └── __init__.py, stage0_similarity_test.py, test_stage0_pipeline.py,
-│        test_stage1_consensus.py
-├── .env
-├── .gitignore
-├── pyproject.toml
-└── organize_project.sh
+└── tests/
 ```
 
 ## Notes
 
-- `services/embedding_service.py` is a hashed fallback by default; swap in a
-  real provider when keys are configured.
-- `.env` is intentionally not committed (root `.gitignore` excludes it).
-- The `.organization_backup_*/` directory, if present, should be kept until all
-  imports and tests pass.
+- `.env` should not be committed; the root repository `.gitignore` already
+  excludes it.
+- Keep any `.organization_backup_*/` directory until all imports and tests are
+  verified.

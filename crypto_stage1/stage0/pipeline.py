@@ -5,6 +5,9 @@ The pipeline does its best with what it is given:
 - ``content_hash`` / ``DedupIndex`` always runs.
 - ``EmbeddingService.embed`` is optional; when no vectors are available the
   pipeline still clusters using ``text_similarity``.
+
+A real ``source`` is stored in the event's metadata so Stage 2 can include it in
+generated narratives.
 """
 
 from __future__ import annotations
@@ -48,6 +51,7 @@ class Stage0Result:
     facts: list[dict[str, Any]]
     vector: list[float]
     similarity_score: float
+    source: str = ""
 
 
 class Stage0Pipeline:
@@ -84,7 +88,7 @@ class Stage0Pipeline:
         if not text:
             text = normalize_text(record.raw.get("text", ""))
 
-        is_duplicate, canonical_id = self.dedup.add(record.record_id, text)
+        is_duplicate, _ = self.dedup.add(record.record_id, text)
         canonical = self.dedup.canonical_for(record.record_id)
 
         vector = self._vector_for(text)
@@ -131,6 +135,7 @@ class Stage0Pipeline:
                     "canonical_id": canonical,
                     "event_id": event_id,
                     "duplicate": is_duplicate,
+                    "source": record.source,
                 },
             )
         )
@@ -141,10 +146,11 @@ class Stage0Pipeline:
             deduplicated=is_duplicate,
             canonical_id=canonical or record.record_id,
             event_id=event_id,
-            event_label=label if "label" in locals() else text[:120],
+            event_label=event.label if event is not None else label,
             facts=facts,
             vector=vector,
             similarity_score=score,
+            source=record.source,
         )
 
 
@@ -159,4 +165,7 @@ def run_stage0(
         embedding_service=embedding_service,
         threshold=threshold,
     )
-    return [pipeline.run(record) if isinstance(record, Stage0Record) else pipeline.run(Stage0Record(**record)) for record in records]
+    return [
+        pipeline.run(record) if isinstance(record, Stage0Record) else pipeline.run(Stage0Record(**record))
+        for record in records
+    ]

@@ -6,7 +6,7 @@ from .dedup import DedupIndex, content_hash
 from .event_assignment import assign_to_nearest_event
 from .fact_engine import extract_facts
 from .normalizer import normalize_text
-from .pipeline import run_stage0
+from .pipeline import Stage0Record, Stage0Result, run_stage0
 from .similarity import cosine_similarity, text_similarity
 
 __all__ = [
@@ -18,4 +18,6 @@ __all__ = [
     "normalize_text",
     "run_stage0",
     "text_similarity",
+    "Stage0Record",
+    "Stage0Result",
 ]

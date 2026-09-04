@@ -1,18 +1,41 @@
 """Embedding provider used by Stage 0.
 
 ``EmbeddingService`` is a deterministic hashing fallback that produces a
-stable vector without network access. Swap the backend (Gemini / Groq / OpenAI /
-local model) by passing an object with ``embed(text) -> list[float]`` to
-``EmbeddingService``. The Stage 0 pipeline only needs the ``embed`` method.
+stable vector without network access. A real OpenAI-compatible or Gemini
+backend can be supplied through configuration; the Stage 0 pipeline only needs
+the ``embed`` method.
 """
 
 from __future__ import annotations
 
 import hashlib
+import json
 import math
-from typing import Callable
+import urllib.error
+import urllib.request
+from typing import Any, Callable, Mapping
+
+from .config import Settings
 
 _DIM = 128
+
+
+def _post_json(
+    url: str,
+    headers: Mapping[str, str],
+    payload: Mapping[str, Any],
+    *,
+    timeout: float = 60.0,
+) -> dict[str, Any]:
+    body = json.dumps(payload).encode("utf-8")
+    request = urllib.request.Request(
+        url,
+        data=body,
+        method="POST",
+        headers={"Content-Type": "application/json", **headers},
+    )
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        return json.loads(response.read().decode("utf-8"))
 
 
 def _stable_token_features(text: str) -> list[str]:
@@ -46,6 +69,56 @@ def hashed_vector(text: str, *, dimensions: int = _DIM) -> list[float]:
     return [value / norm for value in vector]
 
 
+class OpenAIEmbedder:
+    """Embedding backend for OpenAI-compatible ``/embeddings`` APIs."""
+
+    def __init__(
+        self,
+        *,
+        api_key: str,
+        base_url: str,
+        model: str,
+        timeout: float = 60.0,
+    ) -> None:
+        self.api_key = api_key
+        self.base_url = base_url
+        self.model = model
+        self.timeout = timeout
+
+    def embed(self, text: str) -> list[float]:
+        data = _post_json(
+            f"{self.base_url.rstrip('/')}/embeddings",
+            {"Authorization": f"Bearer {self.api_key}"},
+            {"model": self.model, "input": text},
+            timeout=self.timeout,
+        )
+        return [float(value) for value in data["data"][0]["embedding"]]
+
+
+class GeminiEmbedder:
+    """Embedding backend for the Google Gemini ``embedContent`` API."""
+
+    def __init__(
+        self,
+        *,
+        api_key: str,
+        model: str,
+        timeout: float = 60.0,
+    ) -> None:
+        self.api_key = api_key
+        self.model = model
+        self.timeout = timeout
+
+    def embed(self, text: str) -> list[float]:
+        data = _post_json(
+            f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:embedContent",
+            {"x-goog-api-key": self.api_key},
+            {"content": {"parts": [{"text": text}]}},
+            timeout=self.timeout,
+        )
+        return [float(value) for value in data["embedding"]["values"]]
+
+
 class EmbeddingService:
     """Small wrapper around an embedding backend.
 
@@ -62,6 +135,30 @@ class EmbeddingService:
         self.backend = backend
         self.model_name = model_name
 
+    @classmethod
+    def from_settings(cls, settings: Settings) -> "EmbeddingService":
+        provider = settings.resolved_embedding_provider
+        if provider == "openai" and settings.openai_api_key:
+            return cls(
+                backend=OpenAIEmbedder(
+                    api_key=settings.openai_api_key,
+                    base_url=settings.openai_base_url,
+                    model=settings.active_embedding_model,
+                    timeout=settings.request_timeout,
+                ),
+                model_name=settings.active_embedding_model,
+            )
+        if provider == "gemini" and settings.gemini_api_key:
+            return cls(
+                backend=GeminiEmbedder(
+                    api_key=settings.gemini_api_key,
+                    model=settings.active_embedding_model,
+                    timeout=settings.request_timeout,
+                ),
+                model_name=settings.active_embedding_model,
+            )
+        return cls(model_name="fallback-hash-v1")
+
     def embed(self, text: str) -> list[float]:
         if self.backend is None:
             return hashed_vector(text)
@@ -70,4 +167,7 @@ class EmbeddingService:
         embedder = getattr(self.backend, "embed", None)
         if embedder is None:
             raise TypeError("embedding backend must be callable or expose .embed(text)")
-        return list(embedder(text))
+        try:
+            return list(embedder(text))
+        except (urllib.error.URLError, KeyError, ValueError, json.JSONDecodeError, OSError):
+            return hashed_vector(text)

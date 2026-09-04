@@ -24,6 +24,7 @@ class Stage0Output:
     facts: list[dict[str, Any]]
     vector: list[float]
     similarity_score: float
+    source: str = ""
 
 
 @dataclass
